@@ -550,6 +550,9 @@ impl Miner {
 
         let block_start = Instant::now();
         debug!(target: "miner", "Attempting to push {} transactions.", engine_txs.len() + queue_txs.len());
+        if engine_txs.len() + queue_txs.len() > 0 {
+            info!(target: "miner", "Attempting to push {} transactions.", engine_txs.len() + queue_txs.len());
+        }
 
         for transaction in engine_txs
             .into_iter()
@@ -574,7 +577,7 @@ impl Miner {
                     ref offend_threshold,
                 } if &took > offend_threshold => {
                     senders_to_penalize.insert(sender);
-                    debug!(target: "miner", "Detected heavy transaction ({} ms). Penalizing sender.", took_ms(&took));
+                    info!(target: "miner", "Detected heavy transaction ({} ms). Penalizing sender.", took_ms(&took));
                 }
                 _ => {}
             }
@@ -589,7 +592,7 @@ impl Miner {
                     }),
                     _,
                 )) => {
-                    debug!(target: "miner", "Skipping adding transaction to block because of gas limit: {:?} (limit: {:?}, used: {:?}, gas: {:?})", hash, gas_limit, gas_used, gas);
+                    info!(target: "miner", "Skipping adding transaction to block because of gas limit: {:?} (limit: {:?}, used: {:?}, gas: {:?})", hash, gas_limit, gas_used, gas);
 
                     // Penalize transaction if it's above current gas limit
                     if gas > gas_limit {
@@ -617,17 +620,17 @@ impl Miner {
                     ErrorKind::Execution(ExecutionError::InvalidNonce { expected, got }),
                     _,
                 )) => {
-                    debug!(target: "miner", "Skipping adding transaction to block because of invalid nonce: {:?} (expected: {:?}, got: {:?})", hash, expected, got);
+                    info!(target: "miner", "Skipping adding transaction to block because of invalid nonce: {:?} (expected: {:?}, got: {:?})", hash, expected, got);
                 }
                 // already have transaction - ignore
                 Err(Error(ErrorKind::Transaction(transaction::Error::AlreadyImported), _)) => {}
                 Err(Error(ErrorKind::Transaction(transaction::Error::NotAllowed), _)) => {
                     not_allowed_transactions.insert(hash);
-                    debug!(target: "miner", "Skipping non-allowed transaction for sender {:?}", hash);
+                    info!(target: "miner", "Skipping non-allowed transaction for sender {:?}", hash);
                 }
                 Err(e) => {
-                    debug!(target: "txqueue", "[{:?}] Marking as invalid: {:?}.", hash, e);
-                    debug!(
+                    info!(target: "txqueue", "[{:?}] Marking as invalid: {:?}.", hash, e);
+                    info!(
                         target: "miner", "Error adding transaction to block: number={}. transaction_hash={:?}, Error: {:?}", block_number, hash, e
                     );
                     invalid_transactions.insert(hash);
@@ -638,6 +641,10 @@ impl Miner {
         }
         let elapsed = block_start.elapsed();
         debug!(target: "miner", "Pushed {} transactions in {} ms", tx_count, took_ms(&elapsed));
+        //debug!("receipts {}", open_block.receipts.len());
+        if tx_count>0 || true {
+            info!(target: "miner", "Pushed {} transactions in {} ms", tx_count, took_ms(&elapsed))
+        }
 
         let block = match open_block.close() {
             Ok(block) => block,
@@ -747,7 +754,7 @@ impl Miner {
             }
         }
 
-        trace!(target: "miner", "seal_block_internally: attempting internal seal.");
+        info!(target: "miner", "seal_block_internally: attempting internal seal.");
 
         let parent_header = match chain.block_header(BlockId::Hash(*block.header.parent_hash())) {
             Some(h) => match h.decode(self.engine.params().eip1559_transition) {

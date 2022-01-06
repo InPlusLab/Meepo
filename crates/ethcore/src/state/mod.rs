@@ -307,7 +307,7 @@ pub fn prove_transaction_virtual<H: AsHashDB<KeccakHasher, DBValue> + Send + Syn
 /// backed-up values are moved into a parent checkpoint (if any).
 ///
 pub struct State<B> {
-    db: B,
+    pub db: B,
     root: H256,
     cache: RefCell<HashMap<Address, AccountEntry>>,
     // The original account is preserved in
@@ -395,6 +395,7 @@ impl<B: Backend> State<B> {
         factories: Factories,
     ) -> TrieResult<State<B>> {
         if !db.as_hash_db().contains(&root) {
+            info!("!db.as_hash_db().contains(&root)");
             return Err(Box::new(TrieError::InvalidStateRoot(root)));
         }
 
@@ -934,6 +935,7 @@ impl<B: Backend> State<B> {
         T: trace::Tracer,
         V: trace::VMTracer,
     {
+        //info!("apply tx begin, state={}", self.root());
         let options = TransactOptions::new(tracer, vm_tracer);
         let e = self.execute(env_info, machine, t, options, false)?;
         let params = machine.params();
@@ -953,6 +955,10 @@ impl<B: Backend> State<B> {
             self.commit()?;
             TransactionOutcome::StateRoot(self.root().clone())
         };
+
+
+        //self.commit()?;
+        //info!("apply tx end, state={}", self.root()); 
 
         let output = e.output;
         let receipt = TypedReceipt::new(
@@ -985,6 +991,7 @@ impl<B: Backend> State<B> {
         T: trace::Tracer,
         V: trace::VMTracer,
     {
+        //info!("execut {:?}", t);
         let schedule = machine.schedule(env_info.number);
         let mut e = Executive::new(self, env_info, machine, &schedule);
 
@@ -1007,6 +1014,7 @@ impl<B: Backend> State<B> {
         for (address, ref mut a) in accounts.iter_mut().filter(|&(_, ref a)| a.is_dirty()) {
             if let Some(ref mut account) = a.account {
                 let addr_hash = account.address_hash(address);
+                //info!("sub trees committing address={}", &address);
                 {
                     let mut account_db = self
                         .factories
@@ -1024,6 +1032,7 @@ impl<B: Backend> State<B> {
                 .trie
                 .from_existing(self.db.as_hash_db_mut(), &mut self.root)?;
             for (address, ref mut a) in accounts.iter_mut().filter(|&(_, ref a)| a.is_dirty()) {
+                //info!("trie committing address={}", &address);
                 a.state = AccountState::Committed;
                 match a.account {
                     Some(ref mut account) => {
@@ -1042,7 +1051,7 @@ impl<B: Backend> State<B> {
     // t_nb 9.4 Propagate local cache into shared canonical state cache.
     fn propagate_to_global_cache(&mut self) {
         let mut addresses = self.cache.borrow_mut();
-        trace!("Committing cache {:?} entries", addresses.len());
+        info!("Committing cache {:?} entries", addresses.len());
         for (address, a) in addresses.drain().filter(|&(_, ref a)| {
             a.state == AccountState::Committed || a.state == AccountState::CleanFresh
         }) {

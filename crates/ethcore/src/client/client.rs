@@ -73,6 +73,7 @@ use client::{
     Mode, NewBlocks, Nonce, PrepareOpenBlock, ProvingBlockChainClient, PruningInfo, ReopenBlock,
     ScheduleInfo, SealedBlockImporter, StateClient, StateInfo, StateOrBlock, TraceFilter, TraceId,
     TransactionId, TransactionInfo, UncleId,
+    Meepo, MeepoConfiguration
 };
 use engines::{
     epoch::PendingTransition, EngineError, EpochTransition, EthEngine, ForkChoice, SealingState,
@@ -190,6 +191,8 @@ struct Importer {
 
     /// A lru cache of recently detected bad blocks
     pub bad_blocks: bad_blocks::BadBlocks,
+
+    meepo: Meepo,
 }
 
 /// Blockchain database client backed by a persistent database. Owns and manages a blockchain and a block queue.
@@ -263,6 +266,9 @@ impl Importer {
         engine: Arc<dyn EthEngine>,
         message_channel: IoChannel<ClientIoMessage>,
         miner: Arc<Miner>,
+        factories: Factories,
+        state_root: H256,
+        meepo_conf: MeepoConfiguration,
     ) -> Result<Importer, EthcoreError> {
         let block_queue = BlockQueue::new(
             config.queue.clone(),
@@ -277,6 +283,7 @@ impl Importer {
             block_queue,
             miner,
             ancient_verifier: AncientVerifier::new(engine.clone()),
+            meepo: Meepo::new(state_root, engine.clone(), factories.clone(), meepo_conf),
             engine,
             bad_blocks: Default::default(),
         })
@@ -347,7 +354,10 @@ impl Importer {
                             pending,
                             client,
                         );
-                        trace!(target:"block_import","Block #{}({}) commited",header.number(),header.hash());
+                        info!(target:"block_import","Block #{}({}) commited",header.number(),header.hash());
+                        client.state_db
+                            .write()
+                            .sync_cache(&route.enacted, &route.retracted, false);
                         import_results.push(route);
                         client
                             .report
@@ -535,6 +545,8 @@ impl Importer {
         }
 
         // t_nb 8.0 Block enacting. Execution of transactions.
+        // TODO: Meepo check state root
+        let state_root = self.meepo.state_root.clone().lock().unwrap().clone();
         let enact_result = enact_verified(
             block,
             engine,
@@ -545,6 +557,7 @@ impl Importer {
             client.factories.clone(),
             is_epoch_begin,
             &mut chain.ancestry_with_metadata_iter(*header.parent_hash()),
+            state_root,
         );
 
         let mut locked_block = match enact_result {
@@ -661,6 +674,8 @@ impl Importer {
             .engine
             .ancestry_actions(&header, &mut chain.ancestry_with_metadata_iter(*parent));
 
+        let env_info = block.env_info();
+        let transactions = &block.transactions;
         let receipts = block.receipts;
         let traces = block.traces.drain();
         let best_hash = chain.best_block_hash();
@@ -717,6 +732,9 @@ impl Importer {
         state
             .journal_under(&mut batch, number, hash)
             .expect("DB commit failed");
+
+        // Meepo Begin
+        self.meepo.start(&receipts, &mut state, header, transactions, &env_info, &mut batch).ok();
 
         let finalized: Vec<_> = ancestry_actions
             .into_iter()
@@ -1001,7 +1019,214 @@ impl Client {
             _ => true,
         };
 
-        let importer = Importer::new(&config, engine.clone(), message_channel.clone(), miner)?;
+        let state_root = chain.clone().best_block_header().state_root;
+        let meepo_conf = MeepoConfiguration {
+            shard_id: 0,
+            shard_port: 9999,
+            shards: Vec::<String>::new(),
+        };
+        let importer = Importer::new(&config, engine.clone(), message_channel.clone(), miner, factories.clone(), state_root, meepo_conf)?;
+
+        let registrar_address = engine
+            .additional_params()
+            .get("registrar")
+            .and_then(|s| Address::from_str(s).ok());
+        if let Some(ref addr) = registrar_address {
+            trace!(target: "client", "Found registrar at {}", addr);
+        }
+
+        let client = Arc::new(Client {
+            enabled: AtomicBool::new(true),
+            sleep_state: Mutex::new(SleepState::new(awake)),
+            liveness: AtomicBool::new(awake),
+            mode: Mutex::new(config.mode.clone()),
+            chain: RwLock::new(chain),
+            tracedb,
+            engine,
+            pruning: config.pruning.clone(),
+            snapshotting_at: AtomicU64::new(0),
+            db: RwLock::new(db.clone()),
+            state_db: RwLock::new(state_db),
+            report: RwLock::new(Default::default()),
+            io_channel: RwLock::new(message_channel),
+            notify: RwLock::new(Vec::new()),
+            queue_transactions: IoChannelQueue::new(config.transaction_verification_queue_size),
+            queued_ancient_blocks: Default::default(),
+            queued_ancient_blocks_executer: Default::default(),
+            queue_consensus_message: IoChannelQueue::new(usize::max_value()),
+            last_hashes: RwLock::new(VecDeque::new()),
+            factories,
+            history,
+            on_user_defaults_change: Mutex::new(None),
+            registrar_address,
+            exit_handler: Mutex::new(None),
+            importer,
+            config,
+        });
+
+        let exec_client = client.clone();
+
+        let queued = client.queued_ancient_blocks.clone();
+        let queued_ancient_blocks_executer = ExecutionQueue::new(
+            ANCIENT_BLOCKS_QUEUE_SIZE,
+            ANCIENT_BLOCKS_BATCH_SIZE,
+            move |ancient_block: Vec<(Unverified, Bytes)>| {
+                trace_time!("import_ancient_block");
+                for (unverified, receipts_bytes) in ancient_block {
+                    let hash = unverified.hash();
+                    if !exec_client.chain.read().is_known(&unverified.parent_hash()) {
+                        queued.write().remove(&hash);
+                        continue;
+                    }
+                    let result = exec_client.importer.import_old_block(
+                        unverified,
+                        &receipts_bytes,
+                        &**exec_client.db.read().key_value(),
+                        &*exec_client.chain.read(),
+                    );
+                    if let Err(e) = result {
+                        error!(target: "client", "Error importing ancient block: {}", e);
+
+                        let mut queued = queued.write();
+                        queued.clear();
+                    }
+                    // remove from pending
+                    queued.write().remove(&hash);
+                }
+            },
+            "ancient_block_exec",
+        );
+
+        client
+            .queued_ancient_blocks_executer
+            .lock()
+            .replace(queued_ancient_blocks_executer);
+
+        // prune old states.
+        {
+            let state_db = client.state_db.read().boxed_clone();
+            let chain = client.chain.read();
+            client.prune_ancient(state_db, &chain)?;
+        }
+
+        // ensure genesis epoch proof in the DB.
+        {
+            let chain = client.chain.read();
+            let gh = spec.genesis_header();
+            if chain.epoch_transition(0, gh.hash()).is_none() {
+                trace!(target: "client", "No genesis transition found.");
+
+                let proof = client.with_proving_caller(BlockId::Number(0), |call| {
+                    client.engine.genesis_epoch_data(&gh, call)
+                });
+                let proof = match proof {
+                    Ok(proof) => proof,
+                    Err(e) => {
+                        warn!(target: "client", "Error generating genesis epoch data: {}. Snapshots generated may not be complete.", e);
+                        Vec::new()
+                    }
+                };
+
+                debug!(target: "client", "Obtained genesis transition proof: {:?}", proof);
+
+                let mut batch = DBTransaction::new();
+                chain.insert_epoch_transition(
+                    &mut batch,
+                    0,
+                    EpochTransition {
+                        block_hash: gh.hash(),
+                        block_number: 0,
+                        proof: proof,
+                    },
+                );
+
+                client.db.read().key_value().write_buffered(batch);
+            }
+        }
+
+        // ensure buffered changes are flushed.
+        client.db.read().key_value().flush()?;
+        Ok(client)
+    }
+
+    pub fn new_with_meepo(
+        config: ClientConfig,
+        spec: &Spec,
+        db: Arc<dyn BlockChainDB>,
+        miner: Arc<Miner>,
+        message_channel: IoChannel<ClientIoMessage>,
+        meepo_conf: MeepoConfiguration,
+    ) -> Result<Arc<Client>, ::error::Error> {
+        let trie_spec = match config.fat_db {
+            true => TrieSpec::Fat,
+            false => TrieSpec::Secure,
+        };
+
+        let trie_factory = TrieFactory::new(trie_spec);
+        let factories = Factories {
+            vm: VmFactory::new(config.vm_type.clone(), config.jump_table_size),
+            trie: trie_factory,
+            accountdb: Default::default(),
+        };
+
+        let journal_db = journaldb::new(db.key_value().clone(), config.pruning, ::db::COL_STATE);
+        let mut state_db = StateDB::new(journal_db, config.state_cache_size);
+        if state_db.journal_db().is_empty() {
+            // Sets the correct state root.
+            state_db = spec.ensure_db_good(state_db, &factories)?;
+            let mut batch = DBTransaction::new();
+            state_db.journal_under(&mut batch, 0, &spec.genesis_header().hash())?;
+            db.key_value().write(batch)?;
+        }
+
+        let gb = spec.genesis_block();
+        let chain = Arc::new(BlockChain::new(
+            config.blockchain.clone(),
+            &gb,
+            db.clone(),
+            spec.params().eip1559_transition,
+        ));
+        let tracedb = RwLock::new(TraceDB::new(
+            config.tracing.clone(),
+            db.clone(),
+            chain.clone(),
+        ));
+
+        trace!(
+            "Cleanup journal: DB Earliest = {:?}, Latest = {:?}",
+            state_db.journal_db().earliest_era(),
+            state_db.journal_db().latest_era()
+        );
+
+        let history = if config.history < MIN_HISTORY_SIZE {
+            info!(target: "client", "Ignoring pruning history parameter of {}\
+				, falling back to minimum of {}",
+				config.history, MIN_HISTORY_SIZE);
+            MIN_HISTORY_SIZE
+        } else {
+            config.history
+        };
+
+        if !chain
+            .block_header_data(&chain.best_block_hash())
+            .map_or(true, |h| state_db.journal_db().contains(&h.state_root()))
+        {
+            warn!(
+                "State root not found for block #{} ({:x})",
+                chain.best_block_number(),
+                chain.best_block_hash()
+            );
+        }
+
+        let engine = spec.engine.clone();
+
+        let awake = match config.mode {
+            Mode::Dark(..) | Mode::Off => false,
+            _ => true,
+        };
+
+        let state_root = chain.clone().best_block_header().state_root;
+        let importer = Importer::new(&config, engine.clone(), message_channel.clone(), miner, factories.clone(), state_root, meepo_conf)?;
 
         let registrar_address = engine
             .additional_params()
@@ -2982,7 +3207,8 @@ impl PrepareOpenBlock for Client {
         let h = best_header.hash();
 
         let is_epoch_begin = chain.epoch_transition(best_header.number(), h).is_some();
-        let mut open_block = OpenBlock::new(
+        let state_root = self.importer.meepo.state_root.clone().lock().unwrap().clone();
+        let mut open_block = OpenBlock::new_meepo(
             engine,
             self.factories.clone(),
             self.tracedb.read().tracing_enabled(),
@@ -2994,6 +3220,7 @@ impl PrepareOpenBlock for Client {
             extra_data,
             is_epoch_begin,
             chain.ancestry_with_metadata_iter(best_header.hash()),
+            &state_root,
         )?;
 
         // Add uncles
@@ -3020,6 +3247,7 @@ impl PrepareOpenBlock for Client {
         Ok(open_block)
     }
 }
+
 
 impl BlockProducer for Client {}
 
@@ -3050,7 +3278,7 @@ impl ImportSealedBlock for Client {
 
             // scope for self.import_lock
             let _import_lock = self.importer.import_lock.lock();
-            trace_time!("import_sealed_block");
+            info!("import_sealed_block");
 
             let block_data = block.rlp_bytes();
 
@@ -3060,7 +3288,7 @@ impl ImportSealedBlock for Client {
                 &block.receipts,
                 block.state.db(),
                 self,
-            )?;
+            )?;            
             let route = self.importer.commit_block(
                 block,
                 &header,
@@ -3068,7 +3296,7 @@ impl ImportSealedBlock for Client {
                 pending,
                 self,
             );
-            trace!(target: "client", "Imported sealed block #{} ({})", header.number(), hash);
+            info!(target: "client", "Imported sealed block #{} ({})", header.number(), hash);
             self.state_db
                 .write()
                 .sync_cache(&route.enacted, &route.retracted, false);

@@ -27,6 +27,7 @@ use ansi_term::Colour;
 use crypto::publickey::{Public, Secret};
 use ethcore::{
     client::VMType,
+    client::MeepoConfiguration,
     miner::{stratum, MinerOptions},
     snapshot::SnapshotConfiguration,
     verification::queue::VerifierSettings,
@@ -133,7 +134,7 @@ impl Configuration {
         let config = Configuration {
             args: Args::parse(command)?,
         };
-
+        println!("parse_cli {}", &config.args.arg_meepo_shards);
         Ok(config)
     }
 
@@ -391,6 +392,20 @@ impl Configuration {
 
             let verifier_settings = self.verifier_settings();
 
+            //let meepo_parsed = self.args.meepo;
+            /*
+            let meepo_conf = MeepoConfiguration {
+                shard_id: meepo_parsed.shard_id.unwrap(),
+                shard_port: meepo_parsed.shard_port.unwrap(),
+                shards: meepo_parsed.shards.unwrap(),
+            };*/
+            let shards = self.args.arg_meepo_shards.split(',').map(Into::into).collect();
+            let meepo_conf = MeepoConfiguration {
+                shard_id: self.args.arg_meepo_shard_id,
+                shard_port: self.args.arg_meepo_shard_port,
+                shards: shards,
+            };
+
             let run_cmd = RunCmd {
                 cache_config: cache_config,
                 dirs: dirs,
@@ -432,6 +447,7 @@ impl Configuration {
                 no_persistent_txqueue: self.args.flag_no_persistent_txqueue,
                 max_round_blocks_to_import: self.args.arg_max_round_blocks_to_import,
                 metrics_conf,
+                meepo_conf,
             };
             Cmd::Run(run_cmd)
         };

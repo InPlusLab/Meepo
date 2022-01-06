@@ -176,6 +176,7 @@ impl<'x> OpenBlock<'x> {
         is_epoch_begin: bool,
         ancestry: I,
     ) -> Result<Self, Error> {
+        //println!("OpenBlock!!!!!!!!");
         let number = parent.number() + 1;
 
         // t_nb 8.1.1 get parent StateDB.
@@ -220,6 +221,68 @@ impl<'x> OpenBlock<'x> {
 
         Ok(r)
     }
+
+
+    pub fn new_meepo<'a, I: IntoIterator<Item = ExtendedHeader>>(
+        engine: &'x dyn EthEngine,
+        factories: Factories,
+        tracing: bool,
+        db: StateDB,
+        parent: &Header,
+        last_hashes: Arc<LastHashes>,
+        author: Address,
+        gas_range_target: (U256, U256),
+        extra_data: Bytes,
+        is_epoch_begin: bool,
+        ancestry: I,
+        meepo_root: &H256,
+    ) -> Result<Self, Error> {
+        info!("new_meepo from_state_root={}", meepo_root);
+        let number = parent.number() + 1;
+
+        // t_nb 8.1.1 get parent StateDB.
+        let state = State::from_existing(
+            db,
+            meepo_root.clone(),
+            engine.account_start_nonce(number),
+            factories,
+        )?;
+        let mut r = OpenBlock {
+            block: ExecutedBlock::new(state, last_hashes, tracing),
+            engine: engine,
+        };
+
+        r.block.header.set_parent_hash(parent.hash());
+        r.block.header.set_number(number);
+        r.block.header.set_author(author);
+        r.block
+            .header
+            .set_timestamp(engine.open_block_header_timestamp(parent.timestamp()));
+        r.block.header.set_extra_data(extra_data);
+        r.block
+            .header
+            .set_base_fee(engine.calculate_base_fee(parent));
+
+        let gas_floor_target = cmp::max(gas_range_target.0, engine.params().min_gas_limit);
+        let gas_ceil_target = cmp::max(gas_range_target.1, gas_floor_target);
+
+        // t_nb 8.1.2 It calculated child gas limits should be.
+        engine.machine().populate_from_parent(
+            &mut r.block.header,
+            parent,
+            gas_floor_target,
+            gas_ceil_target,
+        );
+        // t_nb 8.1.3 this adds engine specific things
+        engine.populate_from_parent(&mut r.block.header, parent);
+
+        // t_nb 8.1.3 updating last hashes and the DAO fork, for ethash.
+        engine.machine().on_new_block(&mut r.block)?;
+        engine.on_new_block(&mut r.block, is_epoch_begin, &mut ancestry.into_iter())?;
+
+        Ok(r)
+    }
+
 
     /// Alter the timestamp of the block.
     pub fn set_timestamp(&mut self, timestamp: u64) {
@@ -266,7 +329,7 @@ impl<'x> OpenBlock<'x> {
         if self.block.transactions_set.contains(&t.hash()) {
             return Err(TransactionError::AlreadyImported.into());
         }
-
+        //info!("push tx begin state={}", self.block.state.root());
         let env_info = self.block.env_info();
         let outcome = self.block.state.apply(
             &env_info,
@@ -274,6 +337,8 @@ impl<'x> OpenBlock<'x> {
             &t,
             self.block.traces.is_enabled(),
         )?;
+
+        //info!("push tx end state={:?}", &outcome.receipt);
 
         self.block
             .transactions_set
@@ -293,6 +358,7 @@ impl<'x> OpenBlock<'x> {
     /// Push transactions onto the block.
     #[cfg(not(feature = "slow-blocks"))]
     fn push_transactions(&mut self, transactions: Vec<SignedTransaction>) -> Result<(), Error> {
+        info!("push_transactions not slow-blocks");
         for t in transactions {
             self.push_transaction(t, None)?;
         }
@@ -303,6 +369,7 @@ impl<'x> OpenBlock<'x> {
     #[cfg(feature = "slow-blocks")]
     fn push_transactions(&mut self, transactions: Vec<SignedTransaction>) -> Result<(), Error> {
         use std::time;
+        println!("push_transactions slow-blocks");
 
         let slow_tx = option_env!("SLOW_TX_DURATION")
             .and_then(|v| v.parse().ok())
@@ -365,7 +432,9 @@ impl<'x> OpenBlock<'x> {
         s.engine.on_close_block(&mut s.block)?;
 
         // t_nb 8.5.2 commit account changes from cache to tree
+        //info!("close_and_lock 1 state={}", s.block.state.root());
         s.block.state.commit()?;
+        //info!("close_and_lock 2 state={}", s.block.state.root());
 
         // t_nb 8.5.3 fill open block header with all other fields
         s.block.header.set_transactions_root(ordered_trie_root(
@@ -537,6 +606,7 @@ pub(crate) fn enact(
     factories: Factories,
     is_epoch_begin: bool,
     ancestry: &mut dyn Iterator<Item = ExtendedHeader>,
+    state_root: H256,
 ) -> Result<LockedBlock, Error> {
     // For trace log
     let trace_state = if log_enabled!(target: "enact", ::log::Level::Trace) {
@@ -551,7 +621,7 @@ pub(crate) fn enact(
     };
 
     // t_nb 8.1 Created new OpenBlock
-    let mut b = OpenBlock::new(
+    let mut b = OpenBlock::new_meepo(
         engine,
         factories,
         tracing,
@@ -565,8 +635,11 @@ pub(crate) fn enact(
         vec![],
         is_epoch_begin,
         ancestry,
+        &state_root,
     )?;
 
+    info!("enact!!!!!!!");
+    info!("enact begin");
     if let Some(ref s) = trace_state {
         let author_balance = s.balance(&b.header.author())?;
         trace!(target: "enact", "num={}, root={}, author={}, author_balance={}\n",
@@ -584,6 +657,7 @@ pub(crate) fn enact(
         b.push_uncle(u)?;
     }
 
+    info!("{}-{}", "end", b.receipts.len());
     // t_nb 8.5 close block
     b.close_and_lock()
 }
@@ -599,6 +673,7 @@ pub fn enact_verified(
     factories: Factories,
     is_epoch_begin: bool,
     ancestry: &mut dyn Iterator<Item = ExtendedHeader>,
+    state_root: H256,
 ) -> Result<LockedBlock, Error> {
     enact(
         block.header,
@@ -612,6 +687,7 @@ pub fn enact_verified(
         factories,
         is_epoch_begin,
         ancestry,
+        state_root,
     )
 }
 

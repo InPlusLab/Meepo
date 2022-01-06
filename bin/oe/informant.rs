@@ -358,7 +358,7 @@ impl ChainNotify for Informant<FullNodeInformantData> {
         let client = &self.target.client;
 
         let importing = self.target.is_major_importing();
-        let ripe = Instant::now() > *last_import + Duration::from_secs(1) && !importing;
+        let mut ripe = Instant::now() > *last_import + Duration::from_secs(1) && !importing;
         let txs_imported = new_blocks
             .imported
             .iter()
@@ -372,6 +372,7 @@ impl ChainNotify for Informant<FullNodeInformantData> {
             .map(|b| b.transactions_count())
             .sum();
 
+        ripe = true;
         if ripe {
             if let Some(block) = new_blocks
                 .imported

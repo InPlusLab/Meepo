@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with OpenEthereum.  If not, see <http://www.gnu.org/licenses/>.
 
-#![warn(missing_docs, unused_extern_crates)]
+// meepo dev
+//#![warn(missing_docs, unused_extern_crates)]
 
 //! Ethcore library
 
@@ -64,6 +65,7 @@ extern crate unexpected;
 extern crate using_queue;
 extern crate vm;
 extern crate wasm;
+extern crate flate2;
 
 #[cfg(any(test, feature = "blooms-db"))]
 extern crate blooms_db;

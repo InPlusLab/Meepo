@@ -1295,6 +1295,7 @@ impl BlockChain {
         receipts: Vec<TypedReceipt>,
         extras: ExtrasInsert,
     ) -> ImportRoute {
+        info!("insert block number={} receipt={}", block.header_view().number(), receipts.len());
         let parent_hash = block.header_view().parent_hash();
         let best_hash = self.best_block_hash();
 

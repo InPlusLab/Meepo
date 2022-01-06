@@ -26,6 +26,7 @@ mod io_message;
 #[cfg(any(test, feature = "test-helpers"))]
 pub mod test_client;
 mod trace;
+mod meepo;
 
 #[cfg(any(test, feature = "test-helpers"))]
 pub use self::evm_test_client::{EvmTestClient, EvmTestError, TransactErr, TransactSuccess};
@@ -34,6 +35,7 @@ pub use self::test_client::{EachBlockWith, TestBlockChainClient};
 pub use self::{
     chain_notify::{ChainMessageType, ChainNotify, ChainRoute, ChainRouteType, NewBlocks},
     client::*,
+    meepo::*,
     config::{BlockChainConfig, ClientConfig, DatabaseCompactionProfile, Mode, VMType},
     io_message::ClientIoMessage,
     traits::{
@@ -60,3 +62,18 @@ pub use verification::VerifierType;
 pub mod traits;
 
 mod chain_notify;
+
+
+// meepo
+extern crate futures;
+
+extern crate http;
+extern crate hyper;
+extern crate hyper_rustls;
+
+extern crate bytes;
+extern crate tokio;
+extern crate url;
+
+pub use client::hyper::Method;
+pub use self::url::Url;

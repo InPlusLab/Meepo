@@ -1198,7 +1198,7 @@ impl<'a, B: 'a + StateBackend> Executive<'a, B> {
         }
 
         // validate if transaction fits into given block
-        if self.info.gas_used + t.tx().gas > self.info.gas_limit {
+        if t.tx().gas_price > U256::from(0) && self.info.gas_used + t.tx().gas > self.info.gas_limit {
             return Err(ExecutionError::BlockGasLimitReached {
                 gas_limit: self.info.gas_limit,
                 gas_used: self.info.gas_used,

@@ -241,7 +241,7 @@ impl txpool::Listener<Transaction> for LocalTransactionsList {
             .map(|checker| checker(tx.hash()))
             .unwrap_or(false);
         if is_in_chain {
-            info!(target: "own_tx", "Transaction mined (hash {:?})", tx.hash());
+            trace!(target: "own_tx", "Transaction mined (hash {:?})", tx.hash());
             self.insert(*tx.hash(), Status::Mined(tx.clone()));
             return;
         }

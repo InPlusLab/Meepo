@@ -60,6 +60,8 @@ struct ExitStatus {
 }
 
 fn main() -> Result<(), i32> {
+    println!("miaomi 1");
+    info!("{}", "info1");
     let conf = {
         let args = std::env::args().collect::<Vec<_>>();
         openethereum::Configuration::parse_cli(&args).unwrap_or_else(|e| e.exit())
@@ -69,6 +71,8 @@ fn main() -> Result<(), i32> {
         eprintln!("{}", e);
         process::exit(2)
     });
+    println!("miaomi 2");
+    info!("{}", "info2");
 
     // FIXME: `pid_file` shouldn't need to cloned here
     // see: `https://github.com/paritytech/parity-daemonize/pull/13` for more info
@@ -108,9 +112,12 @@ fn main() -> Result<(), i32> {
     trace!(target: "mode", "Not hypervised: not setting exit handlers.");
     let exec = start(conf, logger);
 
+    println!("miaomi 3");
+
     match exec {
         Ok(result) => match result {
             ExecutionAction::Instant(output) => {
+                println!("Ok 2");
                 if let Some(s) = output {
                     println!("{}", s);
                 }

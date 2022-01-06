@@ -533,10 +533,12 @@ impl Account {
         trie_factory: &TrieFactory,
         db: &mut dyn HashDB<KeccakHasher, DBValue>,
     ) -> TrieResult<()> {
+        //info!("commit_storage storage_root={}", &self.storage_root);
         let mut t = trie_factory.from_existing(db, &mut self.storage_root)?;
         for (k, v) in self.storage_changes.drain() {
             // cast key and value to trait type,
             // so we can call overloaded `to_bytes` method
+            //info!("commit_storage k={} v={}", &k, &v);
             match v.is_zero() {
                 true => t.remove(k.as_bytes())?,
                 false => t.insert(k.as_bytes(), &encode(&v.into_uint()))?,

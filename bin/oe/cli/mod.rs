@@ -810,6 +810,20 @@ usage! {
             ARG arg_snapshot_threads: (Option<usize>) = None, or |c: &Config| c.snapshots.as_ref()?.processing_threads,
             "--snapshot-threads=[NUM]",
             "Enables multiple threads for snapshots creation.",
+
+        ["Meepo Options"]
+            ARG arg_meepo_shard_port: (u64) = 9999u64, or |c: &Config| c.meepo.as_ref()?.shard_port.clone(),
+            "--shard-port=[PORT]",
+            "Meepo shard port",
+
+            ARG arg_meepo_shard_id: (u64) = 0u64, or |c: &Config| c.meepo.as_ref()?.shard_id.clone(),
+            "--shard-id=[PORT]",
+            "Meepo shard id",
+
+            ARG arg_meepo_shards: (String) = "localhost:9999", or |c: &Config| c.meepo.as_ref()?.shards.as_ref().map(|vec| vec.join(",")),
+            "--shards=[SHARDS]",
+            "Meepo shards",
+
     }
 }
 
@@ -830,6 +844,7 @@ struct Config {
     misc: Option<Misc>,
     stratum: Option<Stratum>,
     metrics: Option<Metrics>,
+    meepo: Option<Meepo>,
 }
 
 #[derive(Default, Debug, PartialEq, Deserialize)]
@@ -882,6 +897,16 @@ struct Network {
     reserved_peers: Option<String>,
     reserved_only: Option<bool>,
 }
+
+
+#[derive(Default, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Meepo {
+    shard_id: Option<u64>,
+    shard_port: Option<u64>,
+    shards: Option<Vec<String>>,
+}
+
 
 #[derive(Default, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]

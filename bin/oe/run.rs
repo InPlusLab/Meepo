@@ -42,7 +42,7 @@ use crate::{
 use ansi_term::Colour;
 use dir::{DatabaseDirectories, Directories};
 use ethcore::{
-    client::{BlockChainClient, BlockInfo, Client, DatabaseCompactionProfile, Mode, VMType},
+    client::{BlockChainClient, BlockInfo, Client, DatabaseCompactionProfile, Mode, VMType, MeepoConfiguration},
     miner::{self, stratum, Miner, MinerOptions, MinerService},
     snapshot::{self, SnapshotConfiguration},
     verification::queue::VerifierSettings,
@@ -112,6 +112,7 @@ pub struct RunCmd {
     pub no_persistent_txqueue: bool,
     pub max_round_blocks_to_import: usize,
     pub metrics_conf: MetricsConfiguration,
+    pub meepo_conf: MeepoConfiguration,
 }
 
 // node info fetcher for the local store.
@@ -143,6 +144,8 @@ impl crate::local_store::NodeInfo for FullNodeInfo {
 ///
 /// On error, returns what to print on stderr.
 pub fn execute(cmd: RunCmd, logger: Arc<RotatingLogger>) -> Result<RunningClient, String> {
+    println!("miaomi 3");
+    info!("miaomi 4");
     // load spec
     let spec = cmd.spec.spec(&cmd.dirs.cache)?;
 
@@ -348,7 +351,7 @@ pub fn execute(cmd: RunCmd, logger: Arc<RotatingLogger>) -> Result<RunningClient
         .map_err(|e| format!("Failed to open database {:?}", e))?;
 
     // create client service.
-    let service = ClientService::start(
+    let service = ClientService::start_with_meepo(
         client_config,
         &spec,
         client_db,
@@ -356,6 +359,7 @@ pub fn execute(cmd: RunCmd, logger: Arc<RotatingLogger>) -> Result<RunningClient
         restoration_db_handler,
         &cmd.dirs.ipc_path(),
         miner.clone(),
+        cmd.meepo_conf,
     )
     .map_err(|e| format!("Client service error: {:?}", e))?;
 

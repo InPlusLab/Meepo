@@ -24,7 +24,7 @@ use stop_guard::StopGuard;
 
 use blockchain::{BlockChainDB, BlockChainDBHandler};
 use ethcore::{
-    client::{ChainNotify, Client, ClientConfig, ClientIoMessage},
+    client::{ChainNotify, Client, ClientConfig, ClientIoMessage, MeepoConfiguration},
     error::{Error as EthcoreError, ErrorKind},
     miner::Miner,
     snapshot::{
@@ -104,6 +104,70 @@ impl ClientService {
             _stop_guard: stop_guard,
         })
     }
+
+
+    /// Start the `ClientService`.
+    pub fn start_with_meepo(
+        config: ClientConfig,
+        spec: &Spec,
+        blockchain_db: Arc<dyn BlockChainDB>,
+        snapshot_path: &Path,
+        restoration_db_handler: Box<dyn BlockChainDBHandler>,
+        _ipc_path: &Path,
+        miner: Arc<Miner>,
+        meepo_conf: MeepoConfiguration,
+    ) -> Result<ClientService, Error> {
+        let io_service = IoService::<ClientIoMessage>::start("Client")?;
+
+        info!(
+            "Configured for {} using {} engine",
+            Colour::White.bold().paint(spec.name.clone()),
+            Colour::Yellow.bold().paint(spec.engine.name())
+        );
+
+        let pruning = config.pruning;
+        let client = Client::new_with_meepo(
+            config,
+            &spec,
+            blockchain_db.clone(),
+            miner.clone(),
+            io_service.channel(),
+            meepo_conf,
+        )?;
+        miner.set_io_channel(io_service.channel());
+        miner.set_in_chain_checker(&client.clone());
+
+        let snapshot_params = SnapServiceParams {
+            engine: spec.engine.clone(),
+            genesis_block: spec.genesis_block(),
+            restoration_db_handler: restoration_db_handler,
+            pruning: pruning,
+            channel: io_service.channel(),
+            snapshot_root: snapshot_path.into(),
+            client: client.clone(),
+        };
+        let snapshot = Arc::new(SnapshotService::new(snapshot_params)?);
+
+        let client_io = Arc::new(ClientIoHandler {
+            client: client.clone(),
+            snapshot: snapshot.clone(),
+        });
+        io_service.register_handler(client_io)?;
+
+        spec.engine.register_client(Arc::downgrade(&client) as _);
+
+        let stop_guard = StopGuard::new();
+
+        Ok(ClientService {
+            io_service: Arc::new(io_service),
+            client: client,
+            snapshot: snapshot,
+            database: blockchain_db,
+            _stop_guard: stop_guard,
+        })
+    }
+
+
 
     /// Get general IO interface
     pub fn register_io_handler(

@@ -45,3 +45,6 @@ rls/
 
 # cargo remote artifacts
 remote-target
+
+# meepo
+test

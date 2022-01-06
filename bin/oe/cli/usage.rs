@@ -334,8 +334,12 @@ macro_rules! usage {
 					(Ok(mut file), _) => {
 						eprintln!("Loading config file from {}", &config_file);
 						let mut config = String::new();
+						println!("1");
 						file.read_to_string(&mut config).map_err(|e| ArgsError::Config(config_file, e))?;
-						Ok(raw_args.into_args(Self::parse_config(&config)?))
+						println!("2");
+						let temp = Self::parse_config(&config)?;
+						println!("temp get");
+						Ok(raw_args.into_args(temp))
 					},
 					// Don't display error in case default config cannot be loaded.
 					(Err(_), None) => Ok(raw_args.into_args(Config::default())),
@@ -368,6 +372,7 @@ macro_rules! usage {
 			}
 
 			fn parse_config(config: &str) -> Result<Config, ArgsError> {
+				println!("parse_config");
 				Ok(toml::from_str(config)?)
 			}
 
@@ -520,6 +525,7 @@ macro_rules! usage {
 		impl RawArgs {
 			fn into_args(self, config: Config) -> Args {
 				let mut args = Args::default();
+				println!("3");
 				$(
 					args.$subc = self.$subc;
 
@@ -561,11 +567,14 @@ macro_rules! usage {
 						);
 					)*
 				)*
+				let temp_meepo = config.meepo.unwrap().shards.clone();
+				println!("3 {:?}", &temp_meepo);
 				args
 			}
 
 			#[allow(unused_variables)] // the submatches of arg-less subcommands aren't used
 			pub fn parse<S: AsRef<str>>(command: &[S]) -> Result<Self, ClapError> {
+				println!("parse");
 
 				let usages = vec![
 					$(
@@ -610,6 +619,9 @@ macro_rules! usage {
 					}
 				)*
 
+
+				println!("parse");
+
 				let matches = App::new("OpenEthereum")
 				    	.global_setting(AppSettings::VersionlessSubcommands)
 						.global_setting(AppSettings::DisableHelpSubcommand)
@@ -646,6 +658,8 @@ macro_rules! usage {
 
 				let mut raw_args : RawArgs = Default::default();
 
+				println!("parse");
+
 				// Globals
 				$(
 					$(
@@ -673,6 +687,8 @@ macro_rules! usage {
 						}
 					)*
 				)*
+
+				println!("parse 4");
 
 				// Subcommands
 				$(
@@ -742,6 +758,8 @@ macro_rules! usage {
 						raw_args.$subc = false;
 					}
 				)*
+
+				println!("parse 5");
 
 				Ok(raw_args)
 			}

@@ -79,6 +79,14 @@ walkdir = "2.3"
 wasm = { path = "../vm/wasm" }
 derive_more = "0.99"
 scopeguard = "1.1.0"
+flate2 = "1.0"
+futures = "0.1"
+hyper = "~0.12.9"
+hyper-rustls = "0.16.0"
+http = "0.1"
+tokio = "0.1.22"
+url = "2"
+bytes = "0.4"
 
 [dev-dependencies]
 blooms-db = { path = "../db/blooms-db" }

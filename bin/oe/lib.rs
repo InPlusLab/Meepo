@@ -188,12 +188,17 @@ fn execute(command: Execute, logger: Arc<RotatingLogger>) -> Result<ExecutionAct
     #[cfg(feature = "deadlock_detection")]
     run_deadlock_detection_thread();
 
+    println!("lib.rs execute");
     match command.cmd {
         Cmd::Run(run_cmd) => {
             let outcome = run::execute(run_cmd, logger)?;
             Ok(ExecutionAction::Running(outcome))
         }
-        Cmd::Version => Ok(ExecutionAction::Instant(Some(Args::print_version()))),
+        Cmd::Version => {
+            println!("version");
+            println!("Ok 1");
+            Ok(ExecutionAction::Instant(Some(Args::print_version())))
+        }
         Cmd::Hash(maybe_file) => {
             print_hash_of(maybe_file).map(|s| ExecutionAction::Instant(Some(s)))
         }

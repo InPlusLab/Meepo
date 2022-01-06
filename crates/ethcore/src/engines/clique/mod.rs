@@ -533,6 +533,7 @@ impl Engine<EthereumMachine> for Clique {
 								inturn, now, limit);
                         match limit.duration_since(SystemTime::now()) {
                             Ok(duration) => {
+                                info!("sleep for {:?}", &duration);
                                 thread::sleep(duration);
                             }
                             Err(e) => {
@@ -540,6 +541,8 @@ impl Engine<EthereumMachine> for Clique {
                                 return Seal::None;
                             }
                         }
+                    } else {
+                        info!("no sleep for seal");
                     }
 
                     trace!(target: "engine", "generate_seal: seal ready for block {}, txs: {}.",

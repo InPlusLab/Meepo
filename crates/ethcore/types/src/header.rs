@@ -73,7 +73,7 @@ pub struct Header {
     extra_data: Bytes,
 
     /// State root.
-    state_root: H256,
+    pub state_root: H256,
     /// Block receipts root.
     receipts_root: H256,
     /// Block bloom.
