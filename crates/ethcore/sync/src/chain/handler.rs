@@ -91,9 +91,11 @@ impl SyncHandler {
                 Err(DownloaderImportError::Invalid) => {
                     debug!(target:"sync", "{} -> Invalid packet {}", peer, packet_id.id());
                     io.disable_peer(peer);
+                    info!("DownloaderImportError::Invalid");
                     sync.deactivate_peer(io, peer);
                 }
                 Err(DownloaderImportError::Useless) => {
+                    info!("DownloaderImportError::Useless");
                     sync.deactivate_peer(io, peer);
                 }
                 Ok(()) => {

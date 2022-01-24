@@ -308,7 +308,7 @@ impl Meepo {
         TypedTransaction::Legacy(transaction::Transaction {
             nonce: U256::from(0),
             action: Action::Call(to),
-            gas: U256::from(100_000),
+            gas: U256::from(1000_000),
             gas_price: U256::default(),
             value: U256::from(0),
             data: data,
@@ -370,6 +370,7 @@ impl Meepo {
             ).unwrap();
 
             if is_replay {
+                epoch_number += 1;
                 self.replay_and_send(&mut state, header, transactions, env_info, epoch_number, &total_error_txs);
                 // replay epoch
             }
@@ -393,7 +394,7 @@ impl Meepo {
             
             state.db.journal_under(batch, header.number(), &header.hash()).expect("DB commit failed");
             let cross_time = start_time.elapsed();
-            warn!("block={}, stat_root={}, cross_time={:?}", header.state_root(), state.root(), cross_time);
+            warn!("block={}, stat_root={}, cross_time_ms={:?} epoch_number={}", header.state_root(), state.root(), cross_time.as_millis(), ret.epoch_number);
             
             let temp_state_root = self.state_root.clone();
             let mut meepo_state_root = temp_state_root.lock().unwrap();
@@ -419,6 +420,9 @@ impl Meepo {
         let data2 = FromHex::from_hex("bd94dbae0000000000000000000000000000000000000000000000000000000000000001").unwrap();
         let res2 = self.exec_on_state(state, env_info, from, to, data2);
         info!("billOf[1]  {:?}", res2.unwrap().output.to_hex());
+        let data2 = FromHex::from_hex("bd94dbae0000000000000000000000000000000000000000000000000000000000009900").unwrap();
+        let res2 = self.exec_on_state(state, env_info, from, to, data2);
+        info!("billOf[39168]  {:?}", res2.unwrap().output.to_hex());
     }
 
 
@@ -545,11 +549,14 @@ impl Meepo {
                         }
                     }
                 }
-
+                //let toprint = msg0data.clone();
                 let res = self.exec_on_state(state, env_info, partials[0].from, partials[0].to, msg0data).unwrap();
                 self.parse_logs(&res.logs, &mut send_epoch_packet_vec, &mut local_finished, partials[0].tx_hash);
                 match res.exception {
                     Some(vmerr) => {
+                        //info!("vmerr {:?}", vmerr);
+                        //info!("from={} to={} data={:?}", partials[0].from, partials[0].to, toprint);
+                        //panic!("?");
                         error_tx_hashes.push(partials[0].tx_hash);
                     }
                     None => {}
@@ -557,7 +564,7 @@ impl Meepo {
             }
 
             let execute_time = start_time.elapsed();
-            info!("withdraw_time={:?} execute_time={:?}", withdraw_time, execute_time);
+            info!("withdraw_time_ms={:?} execute_time_ms={:?}", withdraw_time.as_millis(), execute_time.as_millis());
 
             if !all_finished {
                 info!("not all finished");
@@ -654,7 +661,7 @@ impl Meepo {
         }
 
         let replay_time = start_time.elapsed();
-        info!("replay_time={:?}", replay_time);
+        info!("replay_time_ms={:?}", replay_time.as_millis());
 
         self.send(&mut send_epoch_packet_vec, local_finished, error_tx_hashes);
         Ok(())

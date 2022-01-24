@@ -362,7 +362,8 @@ pub fn verify_header_params(
     }
 
     // check if the block used too much gas
-    if header.gas_used() > header.gas_limit() {
+    // Meepo TODO
+    if false && header.gas_used() > header.gas_limit() {
         return Err(From::from(BlockError::TooMuchGasUsed(OutOfBounds {
             max: Some(*header.gas_limit()),
             min: None,

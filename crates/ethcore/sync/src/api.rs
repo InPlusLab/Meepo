@@ -517,6 +517,8 @@ impl NetworkProtocolHandler for SyncProtocolHandler {
 
 impl ChainNotify for EthSync {
     fn block_pre_import(&self, bytes: &Bytes, hash: &H256, difficulty: &U256) {
+        // Meepo TODO
+        return;
         let task = PriorityTask::PropagateBlock {
             started: ::std::time::Instant::now(),
             block: bytes.clone(),

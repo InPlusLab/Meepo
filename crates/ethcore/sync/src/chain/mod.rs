@@ -539,7 +539,7 @@ impl ChainSyncApi {
                             }
                         }
                     }
-                    debug!(target: "sync", "Finished block propagation, took {}ms", as_ms(started));
+                    info!(target: "sync", "Finished block propagation, took {}ms", as_ms(started));
                 }
                 PriorityTask::PropagateTransactions(time, _) => {
                     SyncPropagator::propagate_new_transactions(&mut sync, io, || {
@@ -1552,11 +1552,17 @@ impl ChainSync {
         let is_syncing = self.status().is_syncing(queue_info);
 
         if !is_syncing || !sealed.is_empty() || !proposed.is_empty() {
-            trace!(target: "sync", "Propagating blocks, state={:?}", self.state);
+            info!(target: "sync", "Propagating blocks, state={:?}", self.state);
             // t_nb 11.4.1 propagate latest blocks
             SyncPropagator::propagate_latest_blocks(self, io, sealed);
             // t_nb 11.4.4 propagate proposed blocks
-            SyncPropagator::propagate_proposed_blocks(self, io, proposed);
+            // Meepo TODO
+            if sealed.is_empty() {
+                info!("sealed.is_empty");
+            }
+            else {
+                SyncPropagator::propagate_proposed_blocks(self, io, proposed);
+            }
         }
         if !invalid.is_empty() {
             info!(target: "sync", "Bad blocks in the queue, restarting sync");

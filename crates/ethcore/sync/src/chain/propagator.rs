@@ -46,7 +46,7 @@ impl SyncPropagator {
         blocks: &[H256],
         peers: &[PeerId],
     ) -> usize {
-        trace!(target: "sync", "Sending NewBlocks to {:?}", peers);
+        info!(target: "sync", "Sending NewBlocks len={} to {:?}", blocks.len(), peers);
         let sent = peers.len();
         let mut send_packet = |io: &mut dyn SyncIo, rlp: Bytes| {
             for peer_id in peers {
@@ -78,7 +78,7 @@ impl SyncPropagator {
         io: &mut dyn SyncIo,
         peers: &[PeerId],
     ) -> usize {
-        trace!(target: "sync", "Sending NewHashes to {:?}", peers);
+        info!(target: "sync", "Sending NewHashes to {:?}", peers);
         let last_parent = *io.chain().best_block_header().parent_hash();
         let best_block_hash = chain_info.best_block_hash;
         let rlp = match ChainSync::create_new_hashes_rlp(io.chain(), &last_parent, &best_block_hash)
@@ -104,7 +104,9 @@ impl SyncPropagator {
         mut should_continue: F,
     ) -> usize {
         // Early out if nobody to send to.
-        if sync.peers.is_empty() {
+        
+        // Meepo TODO
+        if true || sync.peers.is_empty() {
             return 0;
         }
 
@@ -307,6 +309,10 @@ impl SyncPropagator {
         {
             let peers = sync.get_lagging_peers(&chain_info);
             if sealed.is_empty() {
+                info!("sealed.is_empty");
+                /*
+                Meepo TODO
+
                 // t_nb 11.4.2
                 let hashes = SyncPropagator::propagate_new_hashes(sync, &chain_info, io, &peers);
                 let peers = ChainSync::select_random_peers(&peers);
@@ -316,7 +322,10 @@ impl SyncPropagator {
                 if blocks != 0 || hashes != 0 {
                     trace!(target: "sync", "Sent latest {} blocks and {} hashes to peers.", blocks, hashes);
                 }
+
+                */
             } else {
+                info!("sealed.is not empty");
                 // t_nb 11.4.3
                 SyncPropagator::propagate_blocks(sync, &chain_info, io, sealed, &peers);
                 // t_nb 11.4.2
@@ -334,7 +343,7 @@ impl SyncPropagator {
         proposed: &[Bytes],
     ) {
         let peers = sync.get_consensus_peers();
-        trace!(target: "sync", "Sending proposed blocks to {:?}", peers);
+        info!(target: "sync", "Sending proposed blocks to {:?}", peers);
         for block in proposed {
             let rlp = ChainSync::create_block_rlp(block, io.chain().chain_info().total_difficulty);
             for peer_id in &peers {
