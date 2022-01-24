@@ -48,3 +48,4 @@ remote-target
 
 # meepo
 test
+test/[!build*.sh]
