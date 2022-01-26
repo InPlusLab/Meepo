@@ -48,3 +48,6 @@ remote-target
 
 # meepo
 test
+build/openethereum
+build/tmpdir0/chains/
+build/tmpdir1/chains/

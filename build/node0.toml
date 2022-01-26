@@ -1,0 +1,21 @@
+[parity]
+chain = "demo-spec.json"
+base_path = "./tmpdir0"
+[account]
+password = ["node.pwds"]
+[network]
+port = 30300
+[rpc]
+port = 8545
+apis = ["web3", "eth", "net", "personal", "parity", "parity_set", "traces", "rpc", "parity_accounts"]
+[websockets]
+port = 9545
+[ipc]
+path="jsonrpc.ipc"
+[mining]
+engine_signer = "0xe6eacbce92cc4e5ac63d581b5813e7b6ef9437d6"
+reseal_on_txs = "none"
+[meepo]
+shard_id = 0
+shard_port=10080
+shards = ["localhost:10080", "localhost:10081"]
