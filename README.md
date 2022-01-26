@@ -26,13 +26,13 @@ $ cd Meepo/build/
 $ ./debug.sh # or ./release.sh
 ```
 
-3. Run Node0
+3. Run Node0 (Shard0)
 ```bash
 $ cd Meepo/build/
 $ ./initrun0.sh
 ```
 
-4. Run Node1
+4. Run Node1 (Shard1)
 ```bash
 $ cd Meepo/build/
 $ ./initrun1.sh
