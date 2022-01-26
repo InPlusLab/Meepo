@@ -38,7 +38,7 @@ $ cd Meepo/build/
 $ ./initrun1.sh
 ```
 
-5. Try anything you want just use Web3.js or other Ethereum toolchain. As for benchmark, please see the following.
+5. Try anything you want via Web3.js or other Ethereum toolchain. As for benchmark, please see the following.
 
 ## Benchmark
 
