@@ -46,4 +46,4 @@ $ ./initrun1.sh
 
 ![image](https://github.com/tczpl/MeepoBenchmark/raw/main/png/rq1-1_tps.png)
 
-(32x4=128 machines in maximum, 102400 accounts per shard, 100000000+ transactions to an ERC20-like contract.)
+(32x4=128 machines in maximum, each machine is equipped with 4 vCPU, 32 GiB memory, and 894 GiB NVME disk, 102400 accounts per shard, 100000000+ transactions to an ERC20-like contract.)
