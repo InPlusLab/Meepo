@@ -2,7 +2,8 @@
 
 Meepo implementation on OpenEthereum.
 
-MEEPO = Multiple Execution Environment Per Organization
+**MEEPO** = **M**ultiple **E**xecution **E**nvironment **P**er **O**rganization
+It is also a Dota hero who can split himself, each one acting independently but relying on together, just like the shards.
 
 This is an implmentation based on the paper:
 [P. Zheng, Q. Xu, Z. Zheng, Z. Zhou, Y. Yan and H. Zhang, "Meepo: Sharded Consortium Blockchain," 2021 IEEE 37th International Conference on Data Engineering (ICDE), 2021, pp. 1847-1852, doi: 10.1109/ICDE51399.2021.00165.](https://ieeexplore.ieee.org/abstract/document/9458713)
@@ -37,6 +38,6 @@ $ cd Meepo/build/
 $ ./initrun1.sh
 ```
 
-5. Try anything you want just use Web3.js or other Ethereum toolchain. More examples 
+5. Try anything you want just use Web3.js or other Ethereum toolchain.
 
 ## Benchmark
