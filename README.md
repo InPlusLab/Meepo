@@ -2,7 +2,7 @@
 
 Meepo implementation on [OpenEthereum](https://github.com/openethereum/openethereum).
 
-**MEEPO** = **M**ultiple **E**xecution **E**nvironment **P**er **O**rganization. 
+**MEEPO** = **M**ultiple **E**xecution **E**nvironments **P**er **O**rganization. 
 (It is also a Dota hero who can split himself, each one acting independently but relying on together, just like the shards.)
 
 This is an implmentation based on the paper:
