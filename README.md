@@ -41,3 +41,7 @@ $ ./initrun1.sh
 5. Try anything you want just use Web3.js or other Ethereum toolchain.
 
 ## Benchmark
+
+#### More benchmark scripts, logs, and analytic results can be found in this repo: [MeepoBenchmark](https://github.com/tczpl/MeepoBenchmark/).
+
+![image](https://github.com/tczpl/MeepoBenchmark/raw/main/png/rq1-1_tps.png)
