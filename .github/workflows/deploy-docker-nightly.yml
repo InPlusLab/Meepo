@@ -20,7 +20,7 @@ jobs:
           profile:              minimal
           override:             true
       - name:                   Deploy to docker hub
-        uses: elgohr/Publish-Docker-Github-Action@master
+        uses: elgohr/Publish-Docker-Github-Action@v5
         with:
           name: openethereum/openethereum
           username: ${{ secrets.DOCKER_USERNAME }}
